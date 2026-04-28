@@ -1,10 +1,37 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: default
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+    tty: true
+
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+    - /busybox/cat
+    tty: true
+    volumeMounts:
+    - name: docker-config
+      mountPath: /kaniko/.docker
+
+  volumes:
+  - name: docker-config
+    secret:
+      secretName: dockerhub-secret
+'''
+        }
+    }
 
     environment {
         DOCKERHUB_USER = 'alaadin2005'
         APP_IMAGE = 'vprofileapp'
-        DB_IMAGE = 'vprofiledb'
+        DB_IMAGE  = 'vprofiledb'
         TAG = 'latest'
     }
 
@@ -12,39 +39,37 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/alaadin2005/vprofile-microservices-devops-jenkins.git'
+                git branch: 'main',
+                url: 'https://github.com/abdelrahmanonline4/dockerized-microservices.git'
             }
         }
 
-        stage('Build App Image') {
+        stage('Build & Push App Image') {
             steps {
-                script {
-                    dir('Docker-files/app') {
-                        sh "docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} ."
+                dir('Docker-files/app') {
+                    container('kaniko') {
+                        sh '''
+                        /kaniko/executor \
+                          --context `pwd` \
+                          --dockerfile Dockerfile \
+                          --destination ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
+                        '''
                     }
                 }
             }
         }
 
-        stage('Build DB Image') {
+        stage('Build & Push DB Image') {
             steps {
-                script {
-                    dir('Docker-files/db') {
-                        sh "docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} ."
+                dir('Docker-files/db') {
+                    container('kaniko') {
+                        sh '''
+                        /kaniko/executor \
+                          --context `pwd` \
+                          --dockerfile Dockerfile \
+                          --destination ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
+                        '''
                     }
-                }
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh """
-                        echo $PASS | docker login -u $USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
-                        docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
-                        docker logout
-                    """
                 }
             }
         }
@@ -52,16 +77,15 @@ pipeline {
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                    # Apply only Kubernetes YAML files
-                    kubectl apply -f app-secret.yml
-                    kubectl apply -f db-CIP.yml
-                    kubectl apply -f mc-CIP.yml
-                    kubectl apply -f mcdep.yml
-                    kubectl apply -f rmq-CIP-service.yml
-                    kubectl apply -f rmq-dep.yml
-                    kubectl apply -f vproapp-service.yml
-                    kubectl apply -f vproappdep.yml
-                    kubectl apply -f vprodbdep.yml
+                kubectl apply -f app-secret.yml
+                kubectl apply -f db-CIP.yml
+                kubectl apply -f mc-CIP.yml
+                kubectl apply -f mcdep.yml
+                kubectl apply -f rmq-CIP-service.yml
+                kubectl apply -f rmq-dep.yml
+                kubectl apply -f vproapp-service.yml
+                kubectl apply -f vproappdep.yml
+                kubectl apply -f vprodbdep.yml
                 '''
             }
         }
@@ -72,8 +96,7 @@ pipeline {
             echo "✅ Build and deployment completed successfully."
         }
         failure {
-            echo "❌ Pipeline failed. Check logs."
+            echo "❌ Pipeline failed."
         }
     }
 }
-
