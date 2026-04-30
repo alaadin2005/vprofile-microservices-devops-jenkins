@@ -41,7 +41,6 @@ spec:
   volumes:
     - name: docker-sock
       emptyDir: {}
-'''
         }
     }
 
