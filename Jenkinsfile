@@ -50,7 +50,7 @@ spec:
         APP_IMAGE = 'vprofileapp'
         DB_IMAGE  = 'vprofiledb'
         TAG = "${BUILD_NUMBER}"
-        DOCKER_HOST = 'tcp://dind:2375'
+        DOCKER_HOST = 'tcp://localhost:2375'
     }
 
     stages {
