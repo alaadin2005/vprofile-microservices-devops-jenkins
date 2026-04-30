@@ -11,16 +11,14 @@ spec:
 
   - name: kaniko
     image: gcr.io/kaniko-project/executor:v1.23.2
-    command: ["/busybox/sh", "-c"]
-    args: ["cat"]
     volumeMounts:
       - name: docker-config
         mountPath: /kaniko/.docker
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ["/bin/sh", "-c"]
-    args: ["cat"]
+    command: ["cat"]
+    tty: true
 
   volumes:
     - name: docker-config
@@ -75,9 +73,7 @@ spec:
         stage('Deploy') {
             steps {
                 container('kubectl') {
-                    sh '''
-                    kubectl apply -f k8s/
-                    '''
+                    sh 'kubectl apply -f k8s/'
                 }
             }
         }
@@ -85,10 +81,10 @@ spec:
 
     post {
         success {
-            echo "✅ Success"
+            echo "✅ SUCCESS"
         }
         failure {
-            echo "❌ Failed"
+            echo "❌ FAILED"
         }
     }
 }
