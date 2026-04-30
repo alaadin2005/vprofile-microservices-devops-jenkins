@@ -1,7 +1,7 @@
 pipeline {
     agent {
         kubernetes {
-            defaultContainer 'docker'
+            defaultContainer 'jnlp'
             yaml '''
 apiVersion: v1
 kind: Pod
@@ -10,13 +10,14 @@ spec:
 
   containers:
 
-  - name: docker
-    image: docker:27-cli
-    command: ["cat"]
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+      - /busybox/cat
     tty: true
     volumeMounts:
-      - name: docker-sock
-        mountPath: /var/run/docker.sock
+      - name: kaniko-secret
+        mountPath: /kaniko/.docker
 
   - name: kubectl
     image: bitnami/kubectl:latest
@@ -24,9 +25,9 @@ spec:
     tty: true
 
   volumes:
-    - name: docker-sock
-      hostPath:
-        path: /var/run/docker.sock
+    - name: kaniko-secret
+      secret:
+        secretName: dockerhub
 '''
         }
     }
@@ -36,6 +37,7 @@ spec:
         APP_IMAGE = 'vprofileapp'
         DB_IMAGE  = 'vprofiledb'
         TAG = "${BUILD_NUMBER}"
+        REGISTRY = "docker.io"
     }
 
     stages {
@@ -47,52 +49,29 @@ spec:
             }
         }
 
-        stage('Docker Login') {
+        stage('Build & Push App Image') {
             steps {
-                container('docker') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub',
-                        usernameVariable: 'DOCKER_USER',
-                        passwordVariable: 'DOCKER_PASS'
-                    )]) {
-                        sh '''
-                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage('Build App Image') {
-            steps {
-                container('docker') {
-                    dir('Docker-files/app') {
-                        sh """
-                            docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} .
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Build DB Image') {
-            steps {
-                container('docker') {
-                    dir('Docker-files/db') {
-                        sh """
-                            docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} .
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Push Images') {
-            steps {
-                container('docker') {
+                container('kaniko') {
                     sh """
-                        docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
-                        docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
+                    /kaniko/executor \
+                    --context=`pwd`/Docker-files/app \
+                    --dockerfile=`pwd`/Docker-files/app/Dockerfile \
+                    --destination=${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} \
+                    --cache=true
+                    """
+                }
+            }
+        }
+
+        stage('Build & Push DB Image') {
+            steps {
+                container('kaniko') {
+                    sh """
+                    /kaniko/executor \
+                    --context=`pwd`/Docker-files/db \
+                    --dockerfile=`pwd`/Docker-files/db/Dockerfile \
+                    --destination=${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} \
+                    --cache=true
                     """
                 }
             }
@@ -119,17 +98,11 @@ spec:
 
     post {
         success {
-            echo "✅ Pipeline Success: Build + Push + Deploy completed"
+            echo "✅ Kaniko Pipeline Success: Build + Push + Deploy completed"
         }
 
         failure {
             echo "❌ Pipeline Failed"
-        }
-
-        always {
-            container('docker') {
-                sh 'docker logout || true'
-            }
         }
     }
 }
