@@ -11,16 +11,16 @@ spec:
 
   - name: kaniko
     image: gcr.io/kaniko-project/executor:v1.23.2
-    command: ["sleep"]
-    args: ["9999999"]
+    command: ["/busybox/sh", "-c"]
+    args: ["cat"]
     volumeMounts:
       - name: docker-config
         mountPath: /kaniko/.docker
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ["sleep"]
-    args: ["9999999"]
+    command: ["/bin/sh", "-c"]
+    args: ["cat"]
 
   volumes:
     - name: docker-config
@@ -85,10 +85,10 @@ spec:
 
     post {
         success {
-            echo "✅ Pipeline Success"
+            echo "✅ Success"
         }
         failure {
-            echo "❌ Pipeline Failed"
+            echo "❌ Failed"
         }
     }
 }
