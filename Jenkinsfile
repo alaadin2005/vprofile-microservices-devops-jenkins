@@ -1,79 +1,71 @@
 pipeline {
     agent {
         kubernetes {
-            yaml '''
+            yaml """
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: jenkins
-
   containers:
 
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:v1.23.2
+    image: gcr.io/kaniko-project/executor:latest
+    command:
+    - /kaniko/executor
+    args:
+    - "--dockerfile=Docker-files/app/Dockerfile"
+    - "--context=git://github.com/alaadin2005/vprofile-microservices-devops-jenkins.git"
+    - "--destination=alaadin2005/vprofileapp:1"
+    - "--skip-tls-verify"
+
     volumeMounts:
-      - name: docker-config
-        mountPath: /kaniko/.docker
+    - name: docker-config
+      mountPath: /kaniko/.docker
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command: ["cat"]
+    command:
+    - cat
     tty: true
 
-  volumes:
-    - name: docker-config
-      secret:
-        secretName: dockerhub
-'''
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
+"""
         }
     }
 
     environment {
-        DOCKERHUB_USER = 'alaadin2005'
-        APP_IMAGE = 'vprofileapp'
-        DB_IMAGE = 'vprofiledb'
-        TAG = "${BUILD_NUMBER}"
+        DOCKERHUB_CREDS = credentials('dockerhub')
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                git branch: 'main',
-                url: 'https://github.com/abdelrahmanonline4/dockerized-microservices.git'
+                git url: 'https://github.com/alaadin2005/vprofile-microservices-devops-jenkins.git',
+                    branch: 'main'
             }
         }
 
-        stage('Build App Image') {
+        stage('Build & Push Image') {
             steps {
                 container('kaniko') {
                     sh '''
                     /kaniko/executor \
                     --dockerfile=Docker-files/app/Dockerfile \
-                    --context=$PWD \
-                    --destination=alaadin2005/vprofileapp:${BUILD_NUMBER}
+                    --context=$WORKSPACE \
+                    --destination=alaadin2005/vprofileapp:1 \
+                    --skip-tls-verify
                     '''
                 }
             }
         }
 
-        stage('Build DB Image') {
-            steps {
-                container('kaniko') {
-                    sh '''
-                    /kaniko/executor \
-                    --dockerfile=Docker-files/db/Dockerfile \
-                    --context=$PWD \
-                    --destination=alaadin2005/vprofiledb:${BUILD_NUMBER}
-                    '''
-                }
-            }
-        }
-
-        stage('Deploy') {
+        stage('Deploy to K8s') {
             steps {
                 container('kubectl') {
-                    sh 'kubectl apply -f k8s/'
+                    sh '''
+                    kubectl apply -f k8s/
+                    '''
                 }
             }
         }
@@ -81,10 +73,10 @@ spec:
 
     post {
         success {
-            echo "✅ SUCCESS"
+            echo "✅ Pipeline Success"
         }
         failure {
-            echo "❌ FAILED"
+            echo "❌ Pipeline Failed"
         }
     }
 }
