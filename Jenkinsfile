@@ -15,9 +15,9 @@ spec:
     command:
       - cat
     tty: true
-    volumeMounts:
-      - name: docker-sock
-        mountPath: /var/run
+    env:
+      - name: DOCKER_HOST
+        value: tcp://dind:2375
 
   - name: dind
     image: docker:27-dind
@@ -26,6 +26,8 @@ spec:
     env:
       - name: DOCKER_TLS_CERTDIR
         value: ""
+    args:
+      - --host=tcp://0.0.0.0:2375
     volumeMounts:
       - name: docker-sock
         mountPath: /var/run
@@ -44,11 +46,11 @@ spec:
     }
 
     environment {
-        DOCKER_HOST = 'tcp://localhost:2375'
         DOCKERHUB_USER = 'alaadin2005'
         APP_IMAGE = 'vprofileapp'
-        DB_IMAGE = 'vprofiledb'
-        TAG = 'latest'
+        DB_IMAGE  = 'vprofiledb'
+        TAG = "${BUILD_NUMBER}"
+        DOCKER_HOST = 'tcp://dind:2375'
     }
 
     stages {
@@ -60,45 +62,87 @@ spec:
             }
         }
 
-        stage('Build App') {
+        stage('Docker Login') {
             steps {
-                dir('Docker-files/app') {
-                    sh 'docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} .'
+                container('docker') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'USER',
+                        passwordVariable: 'PASS'
+                    )]) {
+                        sh '''
+                        echo $PASS | docker login -u $USER --password-stdin
+                        '''
+                    }
                 }
             }
         }
 
-        stage('Build DB') {
+        stage('Build App Image') {
             steps {
-                dir('Docker-files/db') {
-                    sh 'docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} .'
+                container('docker') {
+                    dir('Docker-files/app') {
+                        sh '''
+                        docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} .
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Build DB Image') {
+            steps {
+                container('docker') {
+                    dir('Docker-files/db') {
+                        sh '''
+                        docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} .
+                        '''
+                    }
                 }
             }
         }
 
         stage('Push Images') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
-                    usernameVariable: 'alaadin2005',
-                    passwordVariable: 'Alaadin@2013'
-                )]) {
+                container('docker') {
                     sh '''
-                    echo $PASS | docker login -u $USER --password-stdin
                     docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
                     docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
-                    docker logout
                     '''
                 }
             }
         }
 
-        stage('Deploy') {
+        stage('Deploy to Kubernetes') {
             steps {
                 container('kubectl') {
-                    sh 'kubectl get pods'
+                    sh '''
+                    kubectl apply -f app-secret.yml
+                    kubectl apply -f db-CIP.yml
+                    kubectl apply -f mc-CIP.yml
+                    kubectl apply -f mcdep.yml
+                    kubectl apply -f rmq-CIP-service.yml
+                    kubectl apply -f rmq-dep.yml
+                    kubectl apply -f vproapp-service.yml
+                    kubectl apply -f vproappdep.yml
+                    kubectl apply -f vprodbdep.yml
+                    '''
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Pipeline Success: Build + Push + Deploy completed"
+        }
+
+        failure {
+            echo "❌ Pipeline Failed"
+        }
+
+        always {
+            sh 'docker logout || true'
         }
     }
 }
