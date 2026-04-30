@@ -10,20 +10,17 @@ spec:
   containers:
 
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:latest
-    args: ["--help"]
-    command:
-      - cat
-    tty: true
+    image: gcr.io/kaniko-project/executor:v1.23.2
+    command: ["sleep"]
+    args: ["9999999"]
     volumeMounts:
       - name: docker-config
         mountPath: /kaniko/.docker
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command:
-      - cat
-    tty: true
+    command: ["sleep"]
+    args: ["9999999"]
 
   volumes:
     - name: docker-config
@@ -52,12 +49,12 @@ spec:
         stage('Build App Image') {
             steps {
                 container('kaniko') {
-                    sh """
+                    sh '''
                     /kaniko/executor \
                     --dockerfile=Docker-files/app/Dockerfile \
-                    --context=\$(pwd) \
-                    --destination=${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
-                    """
+                    --context=$PWD \
+                    --destination=alaadin2005/vprofileapp:${BUILD_NUMBER}
+                    '''
                 }
             }
         }
@@ -65,17 +62,17 @@ spec:
         stage('Build DB Image') {
             steps {
                 container('kaniko') {
-                    sh """
+                    sh '''
                     /kaniko/executor \
                     --dockerfile=Docker-files/db/Dockerfile \
-                    --context=\$(pwd) \
-                    --destination=${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
-                    """
+                    --context=$PWD \
+                    --destination=alaadin2005/vprofiledb:${BUILD_NUMBER}
+                    '''
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy') {
             steps {
                 container('kubectl') {
                     sh '''
