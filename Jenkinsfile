@@ -12,35 +12,21 @@ spec:
 
   - name: docker
     image: docker:27-cli
-    command:
-      - cat
+    command: ["cat"]
     tty: true
-    env:
-      - name: DOCKER_HOST
-        value: tcp://localhost:2375
-
-  - name: dind
-    image: docker:27-dind
-    securityContext:
-      privileged: true
-    env:
-      - name: DOCKER_TLS_CERTDIR
-        value: ""
-    args:
-      - --host=tcp://0.0.0.0:2375
     volumeMounts:
       - name: docker-sock
-        mountPath: /var/run
+        mountPath: /var/run/docker.sock
 
   - name: kubectl
     image: bitnami/kubectl:latest
-    command:
-      - cat
+    command: ["cat"]
     tty: true
 
   volumes:
     - name: docker-sock
-      emptyDir: {}
+      hostPath:
+        path: /var/run/docker.sock
 '''
         }
     }
@@ -50,7 +36,6 @@ spec:
         APP_IMAGE = 'vprofileapp'
         DB_IMAGE  = 'vprofiledb'
         TAG = "${BUILD_NUMBER}"
-        DOCKER_HOST = 'tcp://localhost:2375'
     }
 
     stages {
