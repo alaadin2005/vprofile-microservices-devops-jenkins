@@ -41,6 +41,7 @@ spec:
   volumes:
     - name: docker-sock
       emptyDir: {}
+'''
         }
     }
 
@@ -61,28 +62,29 @@ spec:
             }
         }
 
-    stage('Docker Login') {
-        steps {
-            container('docker') {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
-                    usernameVariable: 'alaadin2005',
-                    passwordVariable: 'Alaadin@2013'
-                )]) {
-                     sh '''
-                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+        stage('Docker Login') {
+            steps {
+                container('docker') {
+                    withCredentials([usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'alaadin@2005',
+                        passwordVariable: 'Alaadin@2013'
+                    )]) {
+                        sh '''
+                            echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        '''
+                    }
                 }
             }
         }
-    }
 
         stage('Build App Image') {
             steps {
                 container('docker') {
                     dir('Docker-files/app') {
-                        sh '''
-                        docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} .
-                        '''
+                        sh """
+                            docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} .
+                        """
                     }
                 }
             }
@@ -92,9 +94,9 @@ spec:
             steps {
                 container('docker') {
                     dir('Docker-files/db') {
-                        sh '''
-                        docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} .
-                        '''
+                        sh """
+                            docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} .
+                        """
                     }
                 }
             }
@@ -103,10 +105,10 @@ spec:
         stage('Push Images') {
             steps {
                 container('docker') {
-                    sh '''
-                    docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
-                    docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
-                    '''
+                    sh """
+                        docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
+                        docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
+                    """
                 }
             }
         }
@@ -115,15 +117,15 @@ spec:
             steps {
                 container('kubectl') {
                     sh '''
-                    kubectl apply -f app-secret.yml
-                    kubectl apply -f db-CIP.yml
-                    kubectl apply -f mc-CIP.yml
-                    kubectl apply -f mcdep.yml
-                    kubectl apply -f rmq-CIP-service.yml
-                    kubectl apply -f rmq-dep.yml
-                    kubectl apply -f vproapp-service.yml
-                    kubectl apply -f vproappdep.yml
-                    kubectl apply -f vprodbdep.yml
+                        kubectl apply -f app-secret.yml
+                        kubectl apply -f db-CIP.yml
+                        kubectl apply -f mc-CIP.yml
+                        kubectl apply -f mcdep.yml
+                        kubectl apply -f rmq-CIP-service.yml
+                        kubectl apply -f rmq-dep.yml
+                        kubectl apply -f vproapp-service.yml
+                        kubectl apply -f vproappdep.yml
+                        kubectl apply -f vprodbdep.yml
                     '''
                 }
             }
@@ -140,7 +142,9 @@ spec:
         }
 
         always {
-            sh 'docker logout || true'
+            container('docker') {
+                sh 'docker logout || true'
+            }
         }
     }
 }
