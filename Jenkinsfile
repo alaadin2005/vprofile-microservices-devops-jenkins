@@ -5,30 +5,21 @@ pipeline {
 apiVersion: v1
 kind: Pod
 spec:
-  serviceAccountName: default
   containers:
-  - name: jnlp
-    image: jenkins/inbound-agent:latest
-    tty: true
-
   - name: kaniko
-    image: gcr.io/kaniko-project/executor:latest
+    image: gcr.io/kaniko-project/executor:v1.23.2-debug
     command:
-    - /bin/sh
-    args:
-    - -c
-    - cat
+    - /busybox/cat
     tty: true
-    tty: true
-    volumeMounts:
-    - name: docker-config
-      mountPath: /kaniko/.docker
-
-  volumes:
-  - name: docker-config
-    secret:
-      secretName: dockerhub-secret
-'''
+''') {
+  node(POD_LABEL) {
+    container('kaniko') {
+      sh '''
+      /kaniko/executor \
+        --context=$WORKSPACE \
+        --dockerfile=Dockerfile \
+        --destination=username/app:v1
+      '''
         }
     }
 
