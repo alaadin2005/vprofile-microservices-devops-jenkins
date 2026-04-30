@@ -62,21 +62,20 @@ spec:
             }
         }
 
-        stage('Docker Login') {
-            steps {
-                container('docker') {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'dockerhub',
-                        usernameVariable: 'alaadin2005',
-                        passwordVariable: 'Alaadin@2013'
-                    )]) {
-                        sh '''
-                        echo $PASS | docker login -u $USER --password-stdin
-                        '''
-                    }
+    stage('Docker Login') {
+        steps {
+            container('docker') {
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'alaadin2005',
+                    passwordVariable: 'Alaadin@2013'
+                )]) {
+                     sh '''
+                         echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                 }
             }
         }
+    }
 
         stage('Build App Image') {
             steps {
