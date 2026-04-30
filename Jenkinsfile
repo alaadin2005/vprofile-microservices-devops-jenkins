@@ -67,8 +67,8 @@ spec:
                 container('docker') {
                     withCredentials([usernamePassword(
                         credentialsId: 'dockerhub',
-                        usernameVariable: 'USER',
-                        passwordVariable: 'PASS'
+                        usernameVariable: 'alaadin2005',
+                        passwordVariable: 'Alaadin@2013'
                     )]) {
                         sh '''
                         echo $PASS | docker login -u $USER --password-stdin
