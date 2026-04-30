@@ -1,7 +1,51 @@
+```groovy id="7fefg8"
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            defaultContainer 'docker'
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  serviceAccountName: jenkins
+
+  containers:
+
+  - name: docker
+    image: docker:27-cli
+    command:
+      - cat
+    tty: true
+    volumeMounts:
+      - name: docker-sock
+        mountPath: /var/run
+
+  - name: dind
+    image: docker:27-dind
+    securityContext:
+      privileged: true
+    env:
+      - name: DOCKER_TLS_CERTDIR
+        value: ""
+    volumeMounts:
+      - name: docker-sock
+        mountPath: /var/run
+
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command:
+      - cat
+    tty: true
+
+  volumes:
+    - name: docker-sock
+      emptyDir: {}
+'''
+        }
+    }
 
     environment {
+        DOCKER_HOST = 'tcp://localhost:2375'
         DOCKERHUB_USER = 'alaadin2005'
         APP_IMAGE = 'vprofileapp'
         DB_IMAGE = 'vprofiledb'
@@ -12,67 +56,51 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/abdelrahmanonline4/dockerized-microservices.git'
+                git branch: 'main',
+                url: 'https://github.com/abdelrahmanonline4/dockerized-microservices.git'
             }
         }
 
-        stage('Build App Image') {
+        stage('Build App') {
             steps {
-                script {
-                    dir('Docker-files/app') {
-                        sh "docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} ."
-                    }
+                dir('Docker-files/app') {
+                    sh 'docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} .'
                 }
             }
         }
 
-        stage('Build DB Image') {
+        stage('Build DB') {
             steps {
-                script {
-                    dir('Docker-files/db') {
-                        sh "docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} ."
-                    }
+                dir('Docker-files/db') {
+                    sh 'docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} .'
                 }
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Push Images') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh """
-                        echo $PASS | docker login -u $USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
-                        docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
-                        docker logout
-                    """
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub',
+                    usernameVariable: 'alaadin2005',
+                    passwordVariable: 'Alaadin@2013'
+                )]) {
+                    sh '''
+                    echo $PASS | docker login -u $USER --password-stdin
+                    docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
+                    docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
+                    docker logout
+                    '''
                 }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Deploy') {
             steps {
-                sh '''
-                    # Apply only Kubernetes YAML files
-                    kubectl apply -f app-secret.yml
-                    kubectl apply -f db-CIP.yml
-                    kubectl apply -f mc-CIP.yml
-                    kubectl apply -f mcdep.yml
-                    kubectl apply -f rmq-CIP-service.yml
-                    kubectl apply -f rmq-dep.yml
-                    kubectl apply -f vproapp-service.yml
-                    kubectl apply -f vproappdep.yml
-                    kubectl apply -f vprodbdep.yml
-                '''
+                container('kubectl') {
+                    sh 'kubectl get pods'
+                }
             }
-        }
-    }
-
-    post {
-        success {
-            echo "✅ Build and deployment completed successfully."
-        }
-        failure {
-            echo "❌ Pipeline failed. Check logs."
         }
     }
 }
+```
