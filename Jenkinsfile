@@ -1,5 +1,9 @@
 pipeline {
-    agent any
+    agent {
+  kubernetes {
+    defaultContainer 'docker'
+  }
+}
 
     environment {
         DOCKERHUB_USER = 'alaadin2005'
