@@ -34,12 +34,7 @@ spec:
     IMAGE = "alaadin2005/vprofileapp:1"
   }
 
-  stages {
-
-    stage('Checkout') {
-      steps {
-        git 'https://github.com/alaadin2005/vprofile-microservices-devops-jenkins.git'
-      }
+  
     }
 
     stage('Docker Build') {
