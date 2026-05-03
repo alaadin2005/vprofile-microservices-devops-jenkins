@@ -1,78 +1,89 @@
 pipeline {
-    agent any
+  agent {
+    kubernetes {
+      yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: jnlp
+    image: jenkins/inbound-agent:latest
 
-    environment {
-        DOCKERHUB_USER = '3booda24'
-        APP_IMAGE = 'vprofileapp'
-        DB_IMAGE = 'vprofiledb'
-        TAG = 'latest'
+  - name: docker
+    image: docker:27-cli
+    command: ["cat"]
+    tty: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ["cat"]
+    tty: true
+
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+'''
+    }
+  }
+
+  environment {
+    IMAGE = "alaadin2005/vprofileapp:1"
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        git 'https://github.com/alaadin2005/vprofile-microservices-devops-jenkins.git'
+      }
     }
 
-    stages {
-
-        stage('Checkout') {
-            steps {
-                git branch: 'Master', url: 'https://github.com/abdelrahmanonline4/dockerized-microservices.git'
-            }
+    stage('Docker Build') {
+      steps {
+        container('docker') {
+          sh "docker build -t $IMAGE Docker-files/app"
         }
-
-        stage('Build App Image') {
-            steps {
-                script {
-                    dir('Docker-files/app') {
-                        sh "docker build -t ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG} ."
-                    }
-                }
-            }
-        }
-
-        stage('Build DB Image') {
-            steps {
-                script {
-                    dir('Docker-files/db') {
-                        sh "docker build -t ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG} ."
-                    }
-                }
-            }
-        }
-
-        stage('Push to Docker Hub') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh """
-                        echo $PASS | docker login -u $USER --password-stdin
-                        docker push ${DOCKERHUB_USER}/${APP_IMAGE}:${TAG}
-                        docker push ${DOCKERHUB_USER}/${DB_IMAGE}:${TAG}
-                        docker logout
-                    """
-                }
-            }
-        }
-
-        stage('Deploy to Kubernetes') {
-            steps {
-                sh '''
-                    # Apply only Kubernetes YAML files
-                    kubectl apply -f app-secret.yml
-                    kubectl apply -f db-CIP.yml
-                    kubectl apply -f mc-CIP.yml
-                    kubectl apply -f mcdep.yml
-                    kubectl apply -f rmq-CIP-service.yml
-                    kubectl apply -f rmq-dep.yml
-                    kubectl apply -f vproapp-service.yml
-                    kubectl apply -f vproappdep.yml
-                    kubectl apply -f vprodbdep.yml
-                '''
-            }
-        }
+      }
     }
 
-    post {
-        success {
-            echo "✅ Build and deployment completed successfully."
+    stage('Docker Login') {
+      steps {
+        container('docker') {
+          withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+            sh '''
+              echo $PASS | docker login -u $USER --password-stdin
+            '''
+          }
         }
-        failure {
-            echo "❌ Pipeline failed. Check logs."
-        }
+      }
     }
+
+    stage('Push Image') {
+      steps {
+        container('docker') {
+          sh "docker push $IMAGE"
+        }
+      }
+    }
+
+    stage('Deploy to K8s') {
+      steps {
+        container('kubectl') {
+          sh """
+            kubectl apply -f k8s/
+          """
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      echo "Pipeline Finished"
+    }
+  }
 }
