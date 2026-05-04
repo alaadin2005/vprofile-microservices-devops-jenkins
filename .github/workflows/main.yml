@@ -2,7 +2,7 @@ name: Build & Push All Services
 
 on:
   push:
-    branches: [ "Master" ]
+    branches: [ "main" ]
 
 jobs:
   build:
