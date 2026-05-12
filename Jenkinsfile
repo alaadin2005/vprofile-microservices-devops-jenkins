@@ -7,8 +7,8 @@ pipeline {
 
     environment {
         DOCKERHUB_USER = 'alaadin2005'
-        APP_IMAGE = 'vprofileapp'
-        DB_IMAGE = 'vprofiledb'
+        APP_IMAGE = 'vprofile-app'
+        DB_IMAGE = 'vprofile-db'
         TAG = 'latest'
     }
 
