@@ -1,14 +1,10 @@
 pipeline {
-    agent {
-  kubernetes {
-    defaultContainer 'jnlp'
-  }
-}
+    agent any
 
     environment {
         DOCKERHUB_USER = 'alaadin2005'
-        APP_IMAGE = 'vprofile-app'
-        DB_IMAGE = 'vprofile-db'
+        APP_IMAGE = 'vprofileapp'
+        DB_IMAGE = 'vprofiledb'
         TAG = 'latest'
     }
 
@@ -80,3 +76,4 @@ pipeline {
         }
     }
 }
+
